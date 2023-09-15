@@ -34,7 +34,7 @@ def time_evolve(potential, initial_wave_function, N, L, K, T, f, ord=2, h_bar=1,
 
         # Propogate kinetic
         psi = fft(psi)
-        p = 2 * np.pi * np.fft.fftfreq(N, d=dx)  # Momentum grid
+        p = 2*np.pi*np.fft.fftfreq(N, d=dx)  # Momentum grid
         psi = psi*np.exp(-1j*dt*h_bar*p**2/(2*m))
         psi = ifft(psi)
 
