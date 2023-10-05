@@ -17,7 +17,7 @@ from qiskit.extensions import Initialize
 from qiskit.quantum_info import Statevector
 
 
-def walsh_evolve_classical(n, K, terms_kept=None):
+def walsh_evolve_classical(n, K, terms_kept=None, ord=2):
     # Constants
     hbar = 1.0  # Reduced Planck's constant
     m = 1.0     # Mass of the particle
@@ -50,13 +50,21 @@ def walsh_evolve_classical(n, K, terms_kept=None):
     progress = tqdm(total=K, desc='working on time evolution')
     for i in range(K):
         # Propogate potential
-        psi = psi*np.exp(-1j*potential_walsh*dt/hbar)
+        if ord == 1:
+            psi = psi*np.exp(-1j*potential_walsh*dt/hbar)
+        elif ord == 2:
+            psi = psi*np.exp(-1j*potential_walsh*dt/2/hbar)
+        else: raise(ValueError('Only first and second order supported.'))
 
         # Propogate kinetic
         psi = fft(psi)
         p = 2 * np.pi * np.fft.fftfreq(N, d=dx)  # Momentum grid
         psi = psi*np.exp(-1j*dt*hbar*p**2/(2*m))
         psi = ifft(psi)
+
+        # Another half step of potential if second order
+        if ord == 2:
+            psi = psi*np.exp(-1j*potential_walsh*dt/2/hbar)
 
         amplitudes.append(np.abs(psi)**2)
         progress.update(1)
@@ -144,7 +152,7 @@ def trotter_step(n_q, dx, dt):
     return qc
 
 
-def walsh_evolve_quantum(n, K, terms_kept=None):
+def walsh_evolve_quantum(n, K, terms_kept=None, ord=2):
     # Constants
     hbar = 1.0  # Reduced Planck's constant
     m = 1.0     # Mass of the particle
@@ -176,7 +184,12 @@ def walsh_evolve_quantum(n, K, terms_kept=None):
     # Initialize(params = wave_func)
     qc.prepare_state(state=wave_func)
 
-    potential_step = unitary_circuit(potential, n, dt, x_grid, terms_kept=terms_kept)
+    if ord == 1:
+        potential_step = unitary_circuit(potential, n, dt, x_grid, terms_kept=terms_kept)
+    elif ord == 2:
+        potential_step = unitary_circuit(potential, n, dt/2, x_grid, terms_kept=terms_kept)
+    else: raise ValueError('Only first and second order supported.')
+
     kinetic_step = trotter_step(n, dx, dt)
 
     iqft = QFT(num_qubits=n, inverse=True).to_gate()
@@ -196,6 +209,10 @@ def walsh_evolve_quantum(n, K, terms_kept=None):
 
         # Apply the QFT
         qc.append(qft, qargs=[i for i in range(n)])
+
+        # Another half step of potential if second order
+        if ord == 2:
+            qc.append(potential_step, qargs=[i for i in range(n)][::-1])
 
         progress.update(1)
         states.append(Statevector.from_instruction(qc))

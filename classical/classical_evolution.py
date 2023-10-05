@@ -1,20 +1,20 @@
 import numpy as np
-from scipy.fft import fft, ifft
+from scipy.fft import fft, ifft, fftfreq
 from tqdm import tqdm
 from scipy.interpolate import RegularGridInterpolator
 import matplotlib.pyplot as plt
 plt.style.use('seaborn-v0_8')
 
 
-def time_evolve(potential, initial_wave_function, N, L, K, T, f, ord=2, h_bar=1, m=1):
-    x_grid = np.linspace(-L, L, N)
-    t_grid = np.linspace(0, T, K)
-    dx, dt = x_grid[1] - x_grid[0], t_grid[1] - t_grid[0]
+def time_evolve(potential, initial_wave_function, N, L, K, T, f, ord=2, D=1/2, h_bar=1, m=1):
+    dx, dt = 2*L/N, T/K
+    x_grid = np.arange(-L, L - dx/2, dx)
+    t_grid = np.arange(0, T - dt/2, dt)
 
     # Initialize the initial wave function
     psi = initial_wave_function(x_grid)
 
-    amplitudes = []
+    states = []
     progress = tqdm(total = K, desc='working on time evolution')
 
     # Propogate potential half step to start
@@ -34,20 +34,20 @@ def time_evolve(potential, initial_wave_function, N, L, K, T, f, ord=2, h_bar=1,
 
         # Propogate kinetic
         psi = fft(psi)
-        p = 2*np.pi*np.fft.fftfreq(N, d=dx)  # Momentum grid
-        psi = psi*np.exp(-1j*dt*h_bar*p**2/(2*m))
+        p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+        psi = psi*np.exp(-1j*D*dt*h_bar*p**2/m)
         psi = ifft(psi)
 
         # Propogate potential half step if second order
         if ord == 2:
             psi = psi*np.exp(-1j*(potential(x_grid) + f(np.abs(psi)**2))*dt/2/h_bar)
 
-        amplitudes.append(np.abs(psi)**2)
+        states.append(psi)
         progress.update(1)
     progress.close()
 
-    amplitudes = np.array(amplitudes)/dx
-    return amplitudes, t_grid, x_grid
+    states = np.array(states)
+    return states, t_grid, x_grid
 
 
 def plot_time_evolution(amplitudes, t_grid, x_grid, interpolate_plot=True):
