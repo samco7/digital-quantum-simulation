@@ -11,7 +11,7 @@ def w(j, k, n):
     return (-1)**exponent
 
 #full array of discrete walsh-fourier transform coefficients a_j
-def wft(f, n, x_grid):
+def wft(f, n, x_grid, verbose=True):
     N = 2**n
     #coefficient a_j in the discrete walsh-fourier transform of f
     def a_j(f, j, n):
@@ -21,15 +21,15 @@ def wft(f, n, x_grid):
         return a_val/N
 
     transform = []
-    progress = tqdm(total=N, desc='working on wft')
+    if verbose: progress = tqdm(total=N, desc='working on wft')
     for j in range(N):
         transform.append(a_j(f, j, n))
-        progress.update(1)
-    progress.close()
+        if verbose: progress.update(1)
+    if verbose: progress.close()
     return np.array(transform)
 
 #array of inverse discrete walsh-fourier transform coefficients f_k (keeping terms_kept most significant terms)
-def iwft(a, n, terms_kept=None):
+def iwft(a, n, terms_kept=None, verbose=True):
     N = 2**n
     if terms_kept is not None:
         sorted_indices = np.argsort(np.abs(a))[::-1]
@@ -44,9 +44,9 @@ def iwft(a, n, terms_kept=None):
         return f_val
 
     inverse_transform = []
-    progress = tqdm(total=N, desc='working on iwft')
+    if verbose: progress = tqdm(total=N, desc='working on iwft')
     for k in range(N):
         inverse_transform.append(f_k(a, k, n, kept_indices))
-        progress.update(1)
-    progress.close()
+        if verbose: progress.update(1)
+    if verbose: progress.close()
     return np.array(inverse_transform)

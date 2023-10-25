@@ -19,13 +19,13 @@ def time_evolve_1(potential, initial_wave_function, N, L, K, T, f, D=1/2, h_bar=
     progress = tqdm(total = K, desc='working on time evolution')
 
     for i in range(K):
-        # Propogate kinetic
+        # propagate kinetic
         psi = fft(psi)
         p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
         psi = psi*np.exp(-1j*D*dt*h_bar*p**2/m)
         psi = ifft(psi)
 
-        # Propogate potential
+        # propagate potential
         ff = f(np.abs(psi)**2)
         psi = psi*np.exp(-1j*(potential(x_grid) + ff)*dt/h_bar)
 
@@ -36,6 +36,7 @@ def time_evolve_1(potential, initial_wave_function, N, L, K, T, f, D=1/2, h_bar=
 
     states = np.array(states)
     return states, t_grid, x_grid
+
 
 def time_evolve_2(potential, initial_wave_function, N, L, K, T, f, D=1/2, h_bar=1, m=1):
     dx, dt = 2*L/N, T/K
@@ -49,18 +50,18 @@ def time_evolve_2(potential, initial_wave_function, N, L, K, T, f, D=1/2, h_bar=
     states = [psi]
     progress = tqdm(total = K, desc='working on time evolution')
 
-    # Propogate potential half step to start
+    # propagate potential half step to start
     ff = f(np.abs(psi)**2)
     psi = psi*np.exp(-1j*(potential(x_grid) + ff)*dt/2/h_bar)
 
     for i in range(K - 1):
-        # Propogate kinetic
+        # propagate kinetic
         psi = fft(psi)
         p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
         psi = psi*np.exp(-1j*D*dt*h_bar*p**2/m)
         psi = ifft(psi)
 
-        # Propogate potential
+        # propagate potential
         ff = f(np.abs(psi)**2)
         psi = psi*np.exp(-1j*(potential(x_grid) + ff)*dt/h_bar)
 
@@ -68,11 +69,13 @@ def time_evolve_2(potential, initial_wave_function, N, L, K, T, f, D=1/2, h_bar=
             states.append(psi.copy()*np.exp(1j*(potential(x_grid) + ff)*dt/2/h_bar))
         progress.update(1)
 
-    # Propogate kinetic
+    # propagate kinetic
     psi = fft(psi)
     p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
     psi = psi*np.exp(-1j*D*dt*h_bar*p**2/m)
     psi = ifft(psi)
+
+    # last potential half step
     psi = psi*np.exp(-1j*(potential(x_grid) + ff)*dt/2/h_bar)
 
     if out:
