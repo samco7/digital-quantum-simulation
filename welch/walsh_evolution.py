@@ -17,7 +17,7 @@ from qiskit.extensions import Initialize
 from qiskit.quantum_info import Statevector
 
 
-def walsh_evolve_1(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1, m=1, terms_kept=None):
+def walsh_evolve_1(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1, m=1, terms_kept=None, verbose=True):
     N = 2**n
     dx, dt = 2*L/N, T/K
     x_grid = np.arange(-L, L - dx/2, dx)
@@ -25,12 +25,12 @@ def walsh_evolve_1(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1,
 
     # Initialize the initial wave function
     psi = initial_wave_function(x_grid)
-    a = wft(potential, n, x_grid)
-    potential_walsh = iwft(a, n, terms_kept=terms_kept)
+    a = wft(potential, n, x_grid, verbose=verbose)
+    potential_walsh = iwft(a, n, terms_kept=terms_kept, verbose=verbose)
 
     out = True
     states = [psi]
-    progress = tqdm(total = K, desc='working on time evolution')
+    if verbose: progress = tqdm(total = K, desc='working on time evolution')
 
     for i in range(K):
         # propagate kinetic
@@ -44,13 +44,13 @@ def walsh_evolve_1(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1,
 
         if out:
             states.append(psi)
-        progress.update(1)
-    progress.close()
+        if verbose: progress.update(1)
+    if verbose: progress.close()
 
     states = np.array(states)
     return states, t_grid, x_grid
 
-def walsh_evolve_2(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1, m=1, terms_kept=None):
+def walsh_evolve_2(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1, m=1, terms_kept=None, verbose=True):
     N = 2**n
     dx, dt = 2*L/N, T/K
     x_grid = np.arange(-L, L - dx/2, dx)
@@ -58,12 +58,12 @@ def walsh_evolve_2(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1,
 
     # Initialize the initial wave function
     psi = initial_wave_function(x_grid)
-    a = wft(potential, n, x_grid)
-    potential_walsh = iwft(a, n, terms_kept=terms_kept)
+    a = wft(potential, n, x_grid, verbose=verbose)
+    potential_walsh = iwft(a, n, terms_kept=terms_kept, verbose=verbose)
 
     out = True
     states = [psi]
-    progress = tqdm(total = K, desc='working on time evolution')
+    if verbose: progress = tqdm(total = K, desc='working on time evolution')
 
     # propagate potential half step to start
     psi = psi*np.exp(-1j*potential_walsh*dt/2/h_bar)
@@ -80,7 +80,7 @@ def walsh_evolve_2(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1,
 
         if out:
             states.append(psi*np.exp(1j*potential_walsh*dt/2/h_bar))
-        progress.update(1)
+        if verbose: progress.update(1)
 
     # propagate kinetic
     psi = fft(psi)
@@ -93,8 +93,8 @@ def walsh_evolve_2(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1,
 
     if out:
         states.append(psi)
-    progress.update(1)
-    progress.close()
+    if verbose: progress.update(1)
+    if verbose: progress.close()
 
     states = np.array(states, dtype='complex')
     return states, t_grid, x_grid
@@ -146,7 +146,7 @@ def unitary_circuit(f, n, dt, x_grid, terms_kept=None, verbose=True):
             circ.cnot(control, target)
             if np.abs(theta) > 0:
                 circ.rz(2*theta*dt, target)
-    circ = transpile(circ, optimization_level=0)
+    circ = transpile(circ, optimization_level=1)
     return circ
 
 
@@ -179,7 +179,7 @@ def kinetic(n_q, dx, dt, D):
     return qc
 
 
-def walsh_evolve_quantum_1(potential, initial_wave_function, n, L, K, T, D=1/2, terms_kept=None):
+def walsh_evolve_quantum_1(potential, initial_wave_function, n, L, K, T, D=1/2, terms_kept=None, verbose=True, gate_count_only=False):
     N = 2**n
     dx, dt = 2*L/N, T/K
     x_grid = np.arange(-L, L, dx)
@@ -190,17 +190,20 @@ def walsh_evolve_quantum_1(potential, initial_wave_function, n, L, K, T, D=1/2, 
 
     # Initialize the initial wave function
     desired_vector = initial_wave_function(x_grid)
-    qc.prepare_state(state=desired_vector)
+    if not gate_count_only: qc.prepare_state(state=desired_vector)
 
     potential_step = unitary_circuit(potential, n, dt, x_grid, terms_kept=terms_kept, verbose=False)
     kinetic_step = kinetic(n, dx, dt, D)
 
-    iqft = QFT(num_qubits=n, inverse=True).to_gate()
-    qft = QFT(num_qubits=n).to_gate()
+    iqft = QFT(num_qubits=n, inverse=True).decompose().to_gate()
+    qft = QFT(num_qubits=n).decompose().to_gate()
 
-    out = True
-    states = [Statevector.from_instruction(qc)]
-    progress = tqdm(total=K, desc='working on time evolution')
+    if gate_count_only: out = False
+    else:
+        out = True
+        states = [Statevector.from_instruction(qc)]
+
+    if verbose: progress = tqdm(total=K, desc='working on time evolution')
     for i in range(K):
         # Kinetic Step
         qc.append(qft, qargs=[i for i in range(n)])
@@ -212,13 +215,15 @@ def walsh_evolve_quantum_1(potential, initial_wave_function, n, L, K, T, D=1/2, 
 
         if out:
             states.append(Statevector.from_instruction(qc))
-        progress.update(1)
-    progress.close()
+        if verbose: progress.update(1)
+    if verbose: progress.close()
 
-    states = np.array(states, dtype='complex')
+    if out: states = np.array(states, dtype='complex')
+    qc = qc.decompose()
+    if gate_count_only: return qc.count_ops()
     return states, t_grid, x_grid
 
-def walsh_evolve_quantum_2(potential, initial_wave_function, n, L, K, T, D=1/2, terms_kept=None):
+def walsh_evolve_quantum_2(potential, initial_wave_function, n, L, K, T, D=1/2, terms_kept=None, verbose=True, gate_count_only=False):
     N = 2**n
     dx, dt = 2*L/N, T/K
     x_grid = np.arange(-L, L - dx/2, dx)
@@ -229,7 +234,7 @@ def walsh_evolve_quantum_2(potential, initial_wave_function, n, L, K, T, D=1/2, 
 
     # Initialize the initial wave function
     desired_vector = initial_wave_function(x_grid)
-    qc.prepare_state(state=desired_vector)
+    if not gate_count_only: qc.prepare_state(state=desired_vector)
 
     potential_step = unitary_circuit(potential, n, dt, x_grid, terms_kept=terms_kept, verbose=False)
     half_potential_step = unitary_circuit(potential, n, dt/2, x_grid, terms_kept=terms_kept, verbose=False)
@@ -238,14 +243,17 @@ def walsh_evolve_quantum_2(potential, initial_wave_function, n, L, K, T, D=1/2, 
     a = wft(potential, n, x_grid, verbose=False)
     potential_walsh = iwft(a, n, terms_kept=terms_kept, verbose=False)
 
-    iqft = QFT(num_qubits=n, inverse=True).to_gate()
-    qft = QFT(num_qubits=n).to_gate()
+    iqft = QFT(num_qubits=n, inverse=True).decompose().to_gate()
+    qft = QFT(num_qubits=n).decompose().to_gate()
 
-    out = True
+    if gate_count_only: out = False
+    else:
+        out = True
+        states = [Statevector.from_instruction(qc)]
+
     qc.append(half_potential_step, qargs=[i for i in range(n)][::-1])
-    states = [Statevector.from_instruction(qc)]
     # propagate potential half step to start
-    progress = tqdm(total=K, desc='working on time evolution')
+    if verbose: progress = tqdm(total=K, desc='working on time evolution')
     for i in range(K - 1):
         # Propagate kinetic
         qc.append(qft, qargs=[i for i in range(n)])
@@ -256,7 +264,7 @@ def walsh_evolve_quantum_2(potential, initial_wave_function, n, L, K, T, D=1/2, 
         qc.append(potential_step, qargs=[i for i in range(n)][::-1])
         if out:
             states.append(np.array(Statevector.from_instruction(qc))*np.exp(1j*potential_walsh*dt/2))
-        progress.update(1)
+        if verbose: progress.update(1)
 
     # Propagate kinetic
     qc.append(qft, qargs=[i for i in range(n)])
@@ -268,10 +276,12 @@ def walsh_evolve_quantum_2(potential, initial_wave_function, n, L, K, T, D=1/2, 
 
     if out:
         states.append(Statevector.from_instruction(qc))
-    progress.update(1)
-    progress.close()
+    if verbose: progress.update(1)
+    if verbose: progress.close()
 
-    states = np.array(states, dtype='complex')
+    if out: states = np.array(states, dtype='complex')
+    qc = qc.decompose()
+    if gate_count_only: return qc.count_ops()
     return states, t_grid, x_grid
 
 
@@ -285,8 +295,10 @@ def plot_time_evolution(amplitudes, t_grid, x_grid, interpolate_plot=True):
         T_new, X_new = np.meshgrid(t_interp, x_interp)
         interp = RegularGridInterpolator((T[0, :], X[:, 0]), C.T, method='linear')
         plt.pcolor(T_new, -X_new, interp((T_new, X_new)), cmap='magma')
+        plt.colorbar()
         plt.show()
     else:
         plt.pcolor(T, -X, C, cmap='magma')
         plt.yticks([-5, 0, 5], [5, 0, -5])
+        plt.colorbar()
         plt.show()
