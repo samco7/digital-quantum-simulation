@@ -284,6 +284,67 @@ def walsh_evolve_quantum_2(potential, initial_wave_function, n, L, K, T, D=1/2, 
     if gate_count_only: return qc.count_ops()
     return states, t_grid, x_grid
 
+def walsh_evolve_quantum_4(potential, initial_wave_function, n, L, K, T, D=1/2, terms_kept=None, verbose=True, gate_count_only=False):
+    N = 2**n
+    dx, dt = 2*L/N, T/K
+    x_grid = np.arange(-L, L - dx/2, dx)
+    t_grid = np.arange(0, T + dt/2, dt)
+
+    # Initializing the quantum circuit
+    qc = QuantumCircuit(n)
+
+    # Initialize the initial wave function
+    desired_vector = initial_wave_function(x_grid)
+    if not gate_count_only: qc.prepare_state(state=desired_vector)
+
+    potential_step = unitary_circuit(potential, n, dt, x_grid, terms_kept=terms_kept, verbose=False)
+    half_potential_step = unitary_circuit(potential, n, dt/2, x_grid, terms_kept=terms_kept, verbose=False)
+    kinetic_step = kinetic(n, dx, dt, D)
+
+    a = wft(potential, n, x_grid, verbose=False)
+    potential_walsh = iwft(a, n, terms_kept=terms_kept, verbose=False)
+
+    iqft = QFT(num_qubits=n, inverse=True).decompose().to_gate()
+    qft = QFT(num_qubits=n).decompose().to_gate()
+
+    if gate_count_only: out = False
+    else:
+        out = True
+        states = [Statevector.from_instruction(qc)]
+
+    qc.append(half_potential_step, qargs=[i for i in range(n)][::-1])
+    # propagate potential half step to start
+    if verbose: progress = tqdm(total=K, desc='working on time evolution')
+    for i in range(K - 1):
+        # Propagate kinetic
+        qc.append(qft, qargs=[i for i in range(n)])
+        qc.append(kinetic_step, qargs=[i for i in range(n)])
+        qc.append(iqft, qargs=[i for i in range(n)])
+
+        # Propagate potential
+        qc.append(potential_step, qargs=[i for i in range(n)][::-1])
+        if out:
+            states.append(np.array(Statevector.from_instruction(qc))*np.exp(1j*potential_walsh*dt/2))
+        if verbose: progress.update(1)
+
+    # Propagate kinetic
+    qc.append(qft, qargs=[i for i in range(n)])
+    qc.append(kinetic_step, qargs=[i for i in range(n)])
+    qc.append(iqft, qargs=[i for i in range(n)])
+
+    # Ending potential half step
+    qc.append(half_potential_step, qargs=[i for i in range(n)][::-1])
+
+    if out:
+        states.append(Statevector.from_instruction(qc))
+    if verbose: progress.update(1)
+    if verbose: progress.close()
+
+    if out: states = np.array(states, dtype='complex')
+    qc = qc.decompose()
+    if gate_count_only: return qc.count_ops()
+    return states, t_grid, x_grid
+
 
 def plot_time_evolution(amplitudes, t_grid, x_grid, interpolate_plot=True):
     T, X = np.meshgrid(t_grid, x_grid)
