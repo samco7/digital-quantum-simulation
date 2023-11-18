@@ -99,6 +99,129 @@ def walsh_evolve_2(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1,
     states = np.array(states, dtype='complex')
     return states, t_grid, x_grid
 
+def walsh_evolve_4(potential, initial_wave_function, n, L, K, T, D=1/2, h_bar=1, m=1, terms_kept=None, verbose=True):
+    N = 2**n
+    dx, dt = 2*L/N, T/K
+    x_grid = np.arange(-L, L - dx/2, dx)
+    t_grid = np.arange(0, T + dt/2, dt)
+    s = 1/(4-4**(1/3))
+
+    # Initialize the initial wave function
+    psi = initial_wave_function(x_grid)
+    a = wft(potential, n, x_grid, verbose=verbose)
+    potential_walsh = iwft(a, n, terms_kept=terms_kept, verbose=verbose)
+
+    out = True
+    states = [psi]
+    if verbose: progress = tqdm(total = K, desc='working on time evolution')
+
+    # propagate potential half step to start
+    psi = psi*np.exp(-1j*potential_walsh*s*dt/2/h_bar)
+
+    for i in range(K - 1):
+        # propagate kinetic
+        psi = fft(psi)
+        p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+        psi = psi*np.exp(-1j*D*s*dt*h_bar*p**2/m)
+        psi = ifft(psi)
+
+        # propagate potential
+        psi = psi*np.exp(-1j*potential_walsh*s*dt/h_bar)
+        
+        # propagate kinetic
+        psi = fft(psi)
+        p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+        psi = psi*np.exp(-1j*D*s*dt*h_bar*p**2/m)
+        psi = ifft(psi)
+
+        # propagate potential
+        psi = psi*np.exp(-1j*potential_walsh*(1-3*s)/2*dt/h_bar)
+        
+        # propagate kinetic
+        psi = fft(psi)
+        p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+        psi = psi*np.exp(-1j*D*(1-4*s)*dt*h_bar*p**2/m)
+        psi = ifft(psi)
+
+        # propagate potential
+        psi = psi*np.exp(-1j*potential_walsh*(1-3*s)/2*dt/h_bar)
+        
+        # propagate kinetic
+        psi = fft(psi)
+        p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+        psi = psi*np.exp(-1j*D*s*dt*h_bar*p**2/m)
+        psi = ifft(psi)
+
+        # propagate potential
+        psi = psi*np.exp(-1j*potential_walsh*s*dt/h_bar)
+        
+        # propagate kinetic
+        psi = fft(psi)
+        p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+        psi = psi*np.exp(-1j*D*s*dt*h_bar*p**2/m)
+        psi = ifft(psi)
+
+        # propagate potential
+        psi = psi*np.exp(-1j*potential_walsh*s*dt/h_bar)
+
+        if out:
+            states.append(psi*np.exp(1j*potential_walsh*s*dt/2/h_bar))
+        if verbose: progress.update(1)
+
+    # propagate kinetic
+    psi = fft(psi)
+    p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+    psi = psi*np.exp(-1j*D*s*dt*h_bar*p**2/m)
+    psi = ifft(psi)
+
+    # propagate potential
+    psi = psi*np.exp(-1j*potential_walsh*s*dt/h_bar)
+
+    # propagate kinetic
+    psi = fft(psi)
+    p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+    psi = psi*np.exp(-1j*D*s*dt*h_bar*p**2/m)
+    psi = ifft(psi)
+
+    # propagate potential
+    psi = psi*np.exp(-1j*potential_walsh*(1-3*s)/2*dt/h_bar)
+
+    # propagate kinetic
+    psi = fft(psi)
+    p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+    psi = psi*np.exp(-1j*D*(1-4*s)*dt*h_bar*p**2/m)
+    psi = ifft(psi)
+
+    # propagate potential
+    psi = psi*np.exp(-1j*potential_walsh*(1-3*s)/2*dt/h_bar)
+
+    # propagate kinetic
+    psi = fft(psi)
+    p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+    psi = psi*np.exp(-1j*D*s*dt*h_bar*p**2/m)
+    psi = ifft(psi)
+
+    # propagate potential
+    psi = psi*np.exp(-1j*potential_walsh*s*dt/h_bar)
+
+    # propagate kinetic
+    psi = fft(psi)
+    p = 2*np.pi*fftfreq(N, d=dx)  # Momentum grid
+    psi = psi*np.exp(-1j*D*s*dt*h_bar*p**2/m)
+    psi = ifft(psi)
+
+    # propagate potential
+    psi = psi*np.exp(-1j*potential_walsh*s*dt/2/h_bar)
+
+    if out:
+        states.append(psi)
+            
+    if verbose: progress.update(1)
+    if verbose: progress.close()
+
+    states = np.array(states, dtype='complex')
+    return states, t_grid, x_grid
+
 
 # Function that gives the partitioned sets by the most significant non-zero bit (MSB) from the number of qubits
 def gray_partitions(n):
@@ -289,6 +412,7 @@ def walsh_evolve_quantum_4(potential, initial_wave_function, n, L, K, T, D=1/2, 
     dx, dt = 2*L/N, T/K
     x_grid = np.arange(-L, L - dx/2, dx)
     t_grid = np.arange(0, T + dt/2, dt)
+    s = 1/(4-4**(1/3))
 
     # Initializing the quantum circuit
     qc = QuantumCircuit(n)
@@ -297,9 +421,11 @@ def walsh_evolve_quantum_4(potential, initial_wave_function, n, L, K, T, D=1/2, 
     desired_vector = initial_wave_function(x_grid)
     if not gate_count_only: qc.prepare_state(state=desired_vector)
 
-    potential_step = unitary_circuit(potential, n, dt, x_grid, terms_kept=terms_kept, verbose=False)
-    half_potential_step = unitary_circuit(potential, n, dt/2, x_grid, terms_kept=terms_kept, verbose=False)
-    kinetic_step = kinetic(n, dx, dt, D)
+    potential_step_s = unitary_circuit(potential, n, s*dt, x_grid, terms_kept=terms_kept, verbose=False)
+    half_potential_step_s = unitary_circuit(potential, n, s*dt/2, x_grid, terms_kept=terms_kept, verbose=False)
+    interm_potential_step_s = unitary_circuit(potential, n, (1-3*s)*dt/2, x_grid, terms_kept=terms_kept, verbose=False)
+    kinetic_step_s = kinetic(n, dx, s*dt, D)
+    interm_kinetic_step_s = kinetic(n, dx, (1-4*s)*dt, D)
 
     a = wft(potential, n, x_grid, verbose=False)
     potential_walsh = iwft(a, n, terms_kept=terms_kept, verbose=False)
@@ -312,31 +438,98 @@ def walsh_evolve_quantum_4(potential, initial_wave_function, n, L, K, T, D=1/2, 
         out = True
         states = [Statevector.from_instruction(qc)]
 
-    qc.append(half_potential_step, qargs=[i for i in range(n)][::-1])
+    qc.append(half_potential_step_s, qargs=[i for i in range(n)][::-1])
     # propagate potential half step to start
     if verbose: progress = tqdm(total=K, desc='working on time evolution')
     for i in range(K - 1):
         # Propagate kinetic
         qc.append(qft, qargs=[i for i in range(n)])
-        qc.append(kinetic_step, qargs=[i for i in range(n)])
+        qc.append(kinetic_step_s, qargs=[i for i in range(n)])
         qc.append(iqft, qargs=[i for i in range(n)])
 
         # Propagate potential
-        qc.append(potential_step, qargs=[i for i in range(n)][::-1])
+        qc.append(potential_step_s, qargs=[i for i in range(n)][::-1])
+        
+        # Propagate kinetic
+        qc.append(qft, qargs=[i for i in range(n)])
+        qc.append(kinetic_step_s, qargs=[i for i in range(n)])
+        qc.append(iqft, qargs=[i for i in range(n)])
+        
+        # Propagate potential
+        qc.append(interm_potential_step_s, qargs=[i for i in range(n)][::-1])
+        
+        # Propagate kinetic
+        qc.append(qft, qargs=[i for i in range(n)])
+        qc.append(interm_kinetic_step_s, qargs=[i for i in range(n)])
+        qc.append(iqft, qargs=[i for i in range(n)])
+        
+        # Propagate potential
+        qc.append(interm_potential_step_s, qargs=[i for i in range(n)][::-1])
+        
+        # Propagate kinetic
+        qc.append(qft, qargs=[i for i in range(n)])
+        qc.append(kinetic_step_s, qargs=[i for i in range(n)])
+        qc.append(iqft, qargs=[i for i in range(n)])
+        
+        # Propagate potential
+        qc.append(potential_step_s, qargs=[i for i in range(n)][::-1])
+        
+        # Propagate kinetic
+        qc.append(qft, qargs=[i for i in range(n)])
+        qc.append(kinetic_step_s, qargs=[i for i in range(n)])
+        qc.append(iqft, qargs=[i for i in range(n)])
+        
+        # Propagate potential
+        qc.append(potential_step_s, qargs=[i for i in range(n)][::-1])
+        
+        # Append the states
         if out:
-            states.append(np.array(Statevector.from_instruction(qc))*np.exp(1j*potential_walsh*dt/2))
+            states.append(np.array(Statevector.from_instruction(qc))*np.exp(1j*potential_walsh*s*dt/2))
         if verbose: progress.update(1)
 
     # Propagate kinetic
     qc.append(qft, qargs=[i for i in range(n)])
-    qc.append(kinetic_step, qargs=[i for i in range(n)])
+    qc.append(kinetic_step_s, qargs=[i for i in range(n)])
     qc.append(iqft, qargs=[i for i in range(n)])
 
-    # Ending potential half step
-    qc.append(half_potential_step, qargs=[i for i in range(n)][::-1])
+    # Propagate potential
+    qc.append(potential_step_s, qargs=[i for i in range(n)][::-1])
 
+    # Propagate kinetic
+    qc.append(qft, qargs=[i for i in range(n)])
+    qc.append(kinetic_step_s, qargs=[i for i in range(n)])
+    qc.append(iqft, qargs=[i for i in range(n)])
+
+    # Propagate potential
+    qc.append(interm_potential_step_s, qargs=[i for i in range(n)][::-1])
+
+    # Propagate kinetic
+    qc.append(qft, qargs=[i for i in range(n)])
+    qc.append(interm_kinetic_step_s, qargs=[i for i in range(n)])
+    qc.append(iqft, qargs=[i for i in range(n)])
+
+    # Propagate potential
+    qc.append(interm_potential_step_s, qargs=[i for i in range(n)][::-1])
+
+    # Propagate kinetic
+    qc.append(qft, qargs=[i for i in range(n)])
+    qc.append(kinetic_step_s, qargs=[i for i in range(n)])
+    qc.append(iqft, qargs=[i for i in range(n)])
+
+    # Propagate potential
+    qc.append(potential_step_s, qargs=[i for i in range(n)][::-1])
+
+    # Propagate kinetic
+    qc.append(qft, qargs=[i for i in range(n)])
+    qc.append(kinetic_step_s, qargs=[i for i in range(n)])
+    qc.append(iqft, qargs=[i for i in range(n)])
+
+    # Propagate potential
+    qc.append(half_potential_step_s, qargs=[i for i in range(n)][::-1])
+
+    # Append the states
     if out:
-        states.append(Statevector.from_instruction(qc))
+        states.append(np.array(Statevector.from_instruction(qc)))
     if verbose: progress.update(1)
     if verbose: progress.close()
 
